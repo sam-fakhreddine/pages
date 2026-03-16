@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Global Conflict Map — 2026</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Playfair+Display:wght@700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f0e;--surface:#141614;--border:#2a2d2a;
+  --text:#d4cfc0;--muted:#7a7870;--accent:#C84315;
+  --hdr:46px;--sheet:0px;
+}
+html,body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;height:100%;overflow:hidden}
+
+/* ── HEADER ── */
+#header{
+  position:fixed;top:0;left:0;right:0;z-index:40;
+  background:var(--bg);border-bottom:1px solid var(--border);
+  height:var(--hdr);padding:0 14px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+#header h1{font-family:'Playfair Display',Georgia,serif;font-size:16px;font-weight:700;white-space:nowrap}
+#header .sub{font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-left:10px;white-space:nowrap}
+#hdr-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+
+/* desktop filter strip */
+#filter-strip{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.filter-btn{
+  font-family:'Space Mono',monospace;font-size:9px;
+  background:none;border:1px solid var(--border);
+  color:var(--muted);padding:3px 7px;cursor:pointer;
+  letter-spacing:.05em;text-transform:uppercase;border-radius:2px;transition:all .15s;
+}
+.filter-btn:hover,.filter-btn.on{border-color:var(--accent);color:var(--accent)}
+.filter-btn.on{background:#C8431518}
+
+/* mobile filter toggle */
+#filter-toggle{
+  display:none;
+  font-family:'Space Mono',monospace;font-size:9px;
+  background:none;border:1px solid var(--border);
+  color:var(--muted);padding:4px 10px;cursor:pointer;
+  letter-spacing:.06em;text-transform:uppercase;border-radius:2px;
+}
+#filter-toggle.open{border-color:var(--accent);color:var(--accent);background:#C8431518}
+
+/* ── FILTER DRAWER (mobile) ── */
+#filter-drawer{
+  position:fixed;top:var(--hdr);left:0;right:0;z-index:39;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:10px 14px;
+  display:none;flex-wrap:wrap;gap:6px;
+}
+#filter-drawer.open{display:flex}
+
+/* ── MAP ── */
+#map-wrap{
+  position:fixed;top:var(--hdr);left:0;right:0;bottom:0;
+  overflow:hidden;
+}
+#wm{width:100%;height:100%;cursor:grab;touch-action:none}
+#wm:active{cursor:grabbing}
+
+/* ── BOTTOM SHEET ── */
+#sheet{
+  position:fixed;bottom:0;left:0;right:0;z-index:50;
+  background:var(--surface);border-top:1px solid var(--border);
+  transform:translateY(100%);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+  max-height:55vh;overflow-y:auto;
+}
+#sheet.open{transform:translateY(0)}
+#sheet-handle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px 6px;border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:var(--surface);
+}
+#sheet-title{font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:var(--text)}
+#sheet-close{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:18px;line-height:1;padding:0 2px;
+}
+#sheet-body{padding:10px 16px 16px;font-size:11px;line-height:1.6;color:var(--muted)}
+#sheet-body .row{
+  border-left:2px solid var(--border);padding:6px 0 6px 10px;margin-bottom:8px;
+}
+#sheet-body .row .type{font-size:9px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+#sheet-body .row .detail{color:var(--text)}
+
+/* ── DESKTOP LEGEND (bottom bar) ── */
+#legend{
+  position:fixed;bottom:0;left:0;right:0;z-index:30;
+  background:var(--bg);border-top:1px solid var(--border);
+  padding:7px 16px 9px;
+  display:flex;flex-wrap:wrap;gap:5px 16px;align-items:center;
+}
+.li{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.li svg{flex-shrink:0}
+#count-hint{margin-left:auto;font-size:9px;color:var(--muted);white-space:nowrap}
+
+/* ── DESKTOP NODE PANEL ── */
+#nodepanel{
+  position:fixed;top:54px;right:14px;z-index:35;
+  background:var(--surface);border:1px solid var(--border);
+  width:210px;font-size:10px;color:var(--text);
+  display:none;max-height:calc(100vh - 80px);overflow-y:auto;
+}
+#nodepanel .nph{
+  background:var(--accent);padding:7px 10px;
+  font-family:'Playfair Display',Georgia,serif;font-size:13px;color:#fff;font-weight:700;
+  display:flex;justify-content:space-between;align-items:center;
+  position:sticky;top:0;
+}
+#nodepanel .nph button{background:none;border:none;color:#ffffffaa;cursor:pointer;font-size:16px;line-height:1}
+#nodepanel .nprows{padding:8px 10px}
+#nodepanel .nprow{margin:0 0 7px;color:var(--muted);line-height:1.5;border-left:2px solid var(--border);padding-left:6px}
+#nodepanel .nprow .npt{font-size:8px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:1px}
+#nodepanel .nprow span{color:var(--text)}
+
+/* ── HOVER TOOLTIP (desktop only) ── */
+#tooltip{
+  position:fixed;background:var(--surface);border:1px solid var(--border);
+  padding:5px 11px;font-size:11px;color:var(--text);
+  pointer-events:none;white-space:nowrap;max-width:340px;white-space:normal;line-height:1.4;
+  opacity:0;transition:opacity .1s;z-index:60;
+  border-left:2px solid var(--accent);
+}
+
+.arc-path{fill:none;cursor:crosshair}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  #filter-strip{display:none}
+  #filter-toggle{display:block}
+  #legend{display:none}
+  #nodepanel{display:none!important}
+  #count-hint{display:none}
+  #map-wrap{bottom:0}
+}
+@media(min-width:769px){
+  #filter-drawer{display:none!important}
+  #sheet{display:none!important}
+  #map-wrap{bottom:88px}
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div style="display:flex;align-items:baseline;min-width:0">
+    <h1>Global Conflict Map</h1>
+    <span class="sub">2026</span>
+  </div>
+  <div id="hdr-right">
+    <div id="filter-strip"></div>
+    <button id="filter-toggle">Filter</button>
+  </div>
+</div>
+
+<div id="filter-drawer"></div>
+
+<div id="map-wrap"><svg id="wm"></svg></div>
+
+<div id="legend"></div>
+
+<div id="tooltip"></div>
+
+<div id="nodepanel">
+  <div class="nph">
+    <span id="np-name"></span>
+    <button onclick="closePanel()">×</button>
+  </div>
+  <div class="nprows" id="np-rows"></div>
+</div>
+
+<div id="sheet">
+  <div id="sheet-handle">
+    <span id="sheet-title"></span>
+    <button id="sheet-close">×</button>
+  </div>
+  <div id="sheet-body" id="sheet-body"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+const TYPES = {
+  attack:   {c:'#E24B4A',d:'',    w:1.5,o:.75,label:'Attack / war'},
+  proxy:    {c:'#D85A30',d:'5,3', w:1.3,o:.65,label:'Proxy war'},
+  support:  {c:'#1D9E75',d:'',    w:1.5,o:.70,label:'Military support'},
+  helpful:  {c:'#1D9E75',d:'5,3', w:1.0,o:.58,label:'Offering help'},
+  friendly: {c:'#378ADD',d:'',    w:1.2,o:.62,label:'Friendly / talks'},
+  threat:   {c:'#EF9F27',d:'4,2', w:1.5,o:.70,label:'Threat / coercion'},
+  influence:{c:'#D4537E',d:'3,2', w:1.2,o:.65,label:'Influence / covert'},
+  cyber:    {c:'#7F77DD',d:'2,2', w:1.0,o:.55,label:'Cyberwarfare'},
+  complex:  {c:'#888780',d:'5,3', w:0.8,o:.50,label:'Complex / ambiguous'},
+};
+
+const ACTORS = {
+  'USA':        {ll:[-98,38],   la:'middle',dy:-8, color:'#185FA5'},
+  'Canada':     {ll:[-96,60],   la:'middle',dy:-8, color:'#378ADD'},
+  'Greenland':  {ll:[-42,72],   la:'middle',dy:-8, color:'#888780'},
+  'Mexico':     {ll:[-102,23],  la:'middle',dy:-8, color:'#888780'},
+  'Venezuela':  {ll:[-66,8],    la:'start', dy:-8, color:'#A32D2D'},
+  'Haiti':      {ll:[-72.5,19], la:'start', dy:-8, color:'#888780'},
+  'Colombia':   {ll:[-74,-4],   la:'start', dy:-8, color:'#888780'},
+  'Brazil':     {ll:[-51,-10],  la:'middle',dy:-8, color:'#888780'},
+  'UK':         {ll:[-2,54],    la:'end',   dy:-8, color:'#378ADD'},
+  'France':     {ll:[2,46],     la:'end',   dy:-8, color:'#378ADD'},
+  'Denmark':    {ll:[10,56],    la:'start', dy:-8, color:'#378ADD'},
+  'Europe':     {ll:[13,51],    la:'middle',dy:-8, color:'#888780'},
+  'Hungary':    {ll:[19,47],    la:'start', dy:-8, color:'#A32D2D'},
+  'Ukraine':    {ll:[32,49.5],  la:'end',   dy:-7, color:'#1D9E75'},
+  'Turkey':     {ll:[33,39],    la:'middle',dy:-11,color:'#534AB7'},
+  'Cyprus':     {ll:[33.3,34.8],la:'end',   dy:18, color:'#5F5E5A'},
+  'Lebanon':    {ll:[35.5,34.0],la:'end',   dy:-9, color:'#5F5E5A'},
+  'Israel':     {ll:[35.2,31.5],la:'end',   dy:-9, color:'#D85A30'},
+  'Gaza/WB':    {ll:[34.3,31.4],la:'start', dy:16, color:'#5F5E5A'},
+  'Syria':      {ll:[38.5,35],  la:'start', dy:-9, color:'#5F5E5A'},
+  'Kurds':      {ll:[43,37.5],  la:'start', dy:-9, color:'#1D9E75'},
+  'Iran':       {ll:[53,32],    la:'middle',dy:-10,color:'#993C1D'},
+  'S.Arabia':   {ll:[45,24],    la:'middle',dy:-10,color:'#854F0B'},
+  'UAE':        {ll:[55,24.5],  la:'start', dy:-9, color:'#BA7517'},
+  'Yemen':      {ll:[48,15.5],  la:'middle',dy:-10,color:'#993C1D'},
+  'Russia':     {ll:[90,61],    la:'middle',dy:-8, color:'#791F1F'},
+  'Afghanistan':{ll:[67,33],    la:'end',   dy:-8, color:'#A32D2D'},
+  'Pakistan':   {ll:[68,30],    la:'end',   dy:14, color:'#534AB7'},
+  'India':      {ll:[79,22],    la:'middle',dy:-8, color:'#854F0B'},
+  'China':      {ll:[104,35],   la:'middle',dy:-8, color:'#7a2020'},
+  'Taiwan':     {ll:[121,23.5], la:'start', dy:-8, color:'#378ADD'},
+  'N.Korea':    {ll:[127,40],   la:'start', dy:-8, color:'#7a2020'},
+  'SE Asia':    {ll:[105,15],   la:'start', dy:-8, color:'#888780'},
+  'Myanmar':    {ll:[96,19],    la:'start', dy:-8, color:'#888780'},
+  'Sudan':      {ll:[30,15],    la:'start', dy:-8, color:'#A32D2D'},
+  'Ethiopia':   {ll:[40,9],     la:'start', dy:-8, color:'#854F0B'},
+  'Eritrea':    {ll:[39,15],    la:'end',   dy:-8, color:'#888780'},
+  'DRC':        {ll:[24,-3],    la:'start', dy:-8, color:'#A32D2D'},
+  'Rwanda':     {ll:[30,-2],    la:'end',   dy:14, color:'#7a2020'},
+  'Sahel':      {ll:[0,14],     la:'middle',dy:-8, color:'#888780'},
+  'Somalia':    {ll:[46,6],     la:'start', dy:-8, color:'#888780'},
+};
+
+const COUNTRY_COLORS = {
+  840:'#0C447C',124:'#185FA5',304:'#378ADD',
+  643:'#791F1F',156:'#7a2020',804:'#085041',
+  792:'#3a3480',364:'#7a2020',376:'#8a3a1a',
+  682:'#5a3a0a',784:'#8a5a0a',887:'#7a2020',
+  422:'#7a2020',760:'#3a3a3a',196:'#3a3a3a',
+  076:'#1a3a2a',484:'#2a2a2a',862:'#6a1a1a',
+  208:'#1a3a6a',826:'#1a2a6a',250:'#1a2a6a',
+  348:'#6a1a1a',356:'#5a3a0a',586:'#3a2a6a',
+  158:'#1a3a6a',408:'#6a1a1a',104:'#2a3a2a',
+  729:'#6a2a1a',231:'#4a2a0a',232:'#2a2a2a',
+  180:'#6a1a1a',646:'#5a1a1a',466:'#2a2a1a',
+  854:'#2a2a1a',562:'#2a2a1a',706:'#2a1a1a',
+  332:'#2a1a2a',170:'#1a2a1a',004:'#5a1a1a',
+};
+
+const ARCS = [
+  {s:'USA',      t:'Iran',       type:'attack',   lb:'USA + Israel: Day 16 strikes on Iranian military/nuclear sites (Feb 28–Mar 15). Khamenei killed Feb 28. 1,400+ dead. Iran fired 500+ ballistic missiles & 2,000 drones.'},
+  {s:'Israel',   t:'Iran',       type:'attack',   lb:'Israel co-belligerent in Iran strikes. Joint ops, intelligence, arms. Mojtaba Khamenei elected new Supreme Leader Mar 8.'},
+  {s:'Iran',     t:'Israel',     type:'attack',   lb:'Iran retaliation: 500+ ballistic missiles & 2,000 drones fired.'},
+  {s:'Iran',     t:'S.Arabia',   type:'attack',   lb:'Iran attacking US bases / Saudi territory'},
+  {s:'Iran',     t:'UAE',        type:'attack',   lb:'Iran attacking US bases / UAE territory'},
+  {s:'Iran',     t:'Turkey',     type:'attack',   lb:'Iran attacked Turkey'},
+  {s:'Iran',     t:'Cyprus',     type:'attack',   lb:'Iran attacked Cyprus'},
+  {s:'Lebanon',  t:'Israel',     type:'attack',   lb:'Hezbollah: Nov 2024 ceasefire collapsed early 2026. 500+ Israeli strikes on Lebanon incl. Beirut. 826 killed, 800K+ displaced.'},
+  {s:'Israel',   t:'Lebanon',    type:'attack',   lb:'Israel struck 500+ targets across Lebanon after Hezbollah resumed strikes during Iran war.'},
+  {s:'Gaza/WB',  t:'Israel',     type:'attack',   lb:'Hamas: ceasefire nominally holding since Oct 2025 but ~400 Palestinians killed since.'},
+  {s:'Israel',   t:'Gaza/WB',    type:'attack',   lb:'Israel vs Gaza: nearly obliterated after 2+ years. Ceasefire nominally holds but Israeli operations continue.'},
+  {s:'Israel',   t:'Syria',      type:'attack',   lb:'Israel striking Syria — part of broader Iran-axis campaign.'},
+  {s:'Kurds',    t:'Iran',       type:'attack',   lb:'Iranian/Iraqi Kurds (US-backed) attacking Iran'},
+  {s:'Turkey',   t:'Kurds',      type:'attack',   lb:'Turkey (NATO) attacking Kurdish forces'},
+  {s:'Yemen',    t:'Israel',     type:'attack',   lb:'Houthis attacking Israel — Axis of Resistance, entering Iran\'s side'},
+  {s:'Russia',   t:'Ukraine',    type:'attack',   lb:'Russia–Ukraine: Year 5. Russia claims 83–85% of Donetsk. US-brokered talks on hold. Paris Declaration (Jan 6) offered security guarantees, territorial question unresolved.'},
+  {s:'USA',      t:'Venezuela',  type:'attack',   lb:'Operation Absolute Resolve (Jan 3, 2026): US captured Maduro. Airstrikes on northern Venezuelan infrastructure.'},
+  {s:'Sudan',    t:'Sudan',      type:'attack',   lb:'Sudan Civil War: SAF vs RSF. 20,000+ killed since 2023. Most likely conflict to escalate in 2026. Outside involvement from Egypt, Saudi Arabia, UAE, Russia.'},
+  {s:'DRC',      t:'DRC',        type:'attack',   lb:'DRC: Rwanda-backed M23 seized major cities 2025. US sanctioned entire Rwandan army Mar 2. Rwanda effectively annexing Kivu provinces.'},
+  {s:'Myanmar',  t:'Myanmar',    type:'attack',   lb:'Myanmar Civil War: Junta controls only 21% of territory. Resistance 42%. 2,500+ junta airstrikes. Sham election held.'},
+  {s:'Ethiopia', t:'Ethiopia',   type:'attack',   lb:'Ethiopia: TDF moved into disputed territories Jan 26–29. Federal military buildup toward Tigray since Feb 7.'},
+  {s:'S.Arabia', t:'Yemen',      type:'proxy',    lb:'Saudi Arabia: proxy war vs Houthis in Yemen. Saudi-led coalition still active.'},
+  {s:'UAE',      t:'Yemen',      type:'proxy',    lb:'UAE: proxy war vs Houthis in Yemen. Southern factions now fighting each other.'},
+  {s:'Rwanda',   t:'DRC',        type:'proxy',    lb:'Rwanda backing M23 rebels in eastern DRC. US sanctioned entire Rwandan army Mar 2. Rwanda effectively annexing Kivu.'},
+  {s:'Russia',   t:'Sahel',      type:'proxy',    lb:'Russia: Africa Corps (ex-Wagner) deployed to Mali, Burkina Faso, Niger. Failing to degrade insurgencies. Civilian casualties rising.'},
+  {s:'UAE',      t:'Sudan',      type:'proxy',    lb:'UAE: covert military/logistical support to RSF in Sudan Civil War.'},
+  {s:'Iran',     t:'Lebanon',    type:'proxy',    lb:'Iran: arms and funds Hezbollah — "Axis of Resistance" in active use.'},
+  {s:'Iran',     t:'Gaza/WB',    type:'proxy',    lb:'Iran: backing Hamas as part of Axis of Resistance.'},
+  {s:'Russia',   t:'Iran',       type:'support',  lb:'Russia: military support to Iran'},
+  {s:'China',    t:'Iran',       type:'support',  lb:'China: military support to Iran'},
+  {s:'China',    t:'Russia',     type:'support',  lb:'China: military support to Russia'},
+  {s:'Iran',     t:'Yemen',      type:'support',  lb:'Iran: arming / funding Houthis'},
+  {s:'USA',      t:'Kurds',      type:'support',  lb:'USA: backing Kurdish forces'},
+  {s:'USA',      t:'Israel',     type:'support',  lb:'USA → Israel: direct co-belligerent. Joint operations, intelligence, arms.'},
+  {s:'USA',      t:'Ukraine',    type:'support',  lb:'USA → Ukraine: arms, intelligence, training, financial aid. Largest conventional support program.'},
+  {s:'Europe',   t:'Ukraine',    type:'support',  lb:'UK + France + 35-nation Paris Declaration (Jan 6, 2026): military hubs, troops pledged as security guarantees.'},
+  {s:'Denmark',  t:'Greenland',  type:'support',  lb:'Denmark: deployed elite arctic warfare troops to Greenland in response to Trump annexation demands.'},
+  {s:'Egypt',    t:'Sudan',      type:'support',  lb:'Egypt: military/logistical support aligned more with SAF in Sudan Civil War.'},
+  {s:'Canada',   t:'Israel',     type:'support',  lb:'Canada → Israel: continues arms exports despite recognizing Palestinian statehood. Exports include components used in Gaza and Lebanon campaigns. Significant parliamentary pressure to halt.'},
+  {s:'UK',       t:'Gaza/WB',    type:'attack',   lb:'UK: logistical and intelligence support to Israel, including surveillance flights over Gaza. Some arms licences suspended under domestic pressure but operations continued.'},
+  {s:'USA',      t:'Lebanon',    type:'support',  lb:'USA → Israel vs Lebanon: 2,000 lb bunker-busters, artillery shells, and precision munitions transferred directly to Israeli forces conducting the Lebanon campaign.'},
+  {s:'USA',      t:'Gaza/WB',    type:'support',  lb:'USA → Israel vs Gaza: primary weapons supplier — artillery shells, small-diameter bombs, Joint Direct Attack Munitions. Key enabler of the campaign.'},
+  {s:'Israel',   t:'Russia',     type:'friendly', lb:'Israel–Russia: deliberate non-hostility. Deconfliction channel over Syria.'},
+  {s:'USA',      t:'Russia',     type:'friendly', lb:'USA–Russia: peace talks on hold due to Middle East escalation. US maintaining pro-Russia posture.'},
+  {s:'France',   t:'Lebanon',    type:'friendly', lb:'France: mediating Israel–Lebanon ceasefire. Paris hosted diplomatic talks; Macron called for halt to strikes. France pushing hardest of Western powers given historic ties to Beirut.'},
+  {s:'India',    t:'Pakistan',   type:'friendly', lb:'India–Pakistan: diplomatic handshake in Dhaka (Dec 31, 2025). Cautious dialogue restart — but Pakistan accused India of war prep after Mar 5–12 airspace NOTAM.'},
+  {s:'Canada',   t:'Gaza/WB',    type:'friendly', lb:'Canada: formally recognized Palestinian statehood (2025) — supports two-state solution diplomatically.'},
+  {s:'Ukraine',  t:'Israel',     type:'helpful',  lb:'Ukraine: offering drone-defense assistance to Israel'},
+  {s:'Ukraine',  t:'S.Arabia',   type:'helpful',  lb:'Ukraine: offering drone-defense to Gulf states'},
+  {s:'USA',      t:'Greenland',  type:'threat',   lb:'USA (Trump): annexation demand. Threatened 10–25% tariffs on 8 European nations; backed down after WEF speech Jan 21; shifted to "negotiations."'},
+  {s:'USA',      t:'Canada',     type:'threat',   lb:'USA: "51st state" annexation rhetoric. Ongoing economic pressure.'},
+  {s:'USA',      t:'Brazil',     type:'threat',   lb:'USA: sanctions threat vs Brazil.'},
+  {s:'USA',      t:'Europe',     type:'threat',   lb:'USA: tariff / economic threats vs Europe. 10–25% threatened; partially walked back.'},
+  {s:'China',    t:'Taiwan',     type:'threat',   lb:'China → Taiwan: largest-ever military exercises Dec 29–30 2025. Drone overflight of Pratas Islands. First live-fire into Taiwan Strait since 2022. New reef construction (15 km² on Antelope Reef).'},
+  {s:'N.Korea',  t:'USA',        type:'threat',   lb:'N.Korea: fired 2+ ballistic missiles (900 km range) hours after US Venezuela operation. Signaling: "we are not Venezuela."'},
+  {s:'Russia',   t:'Europe',     type:'threat',   lb:'Russia → NATO/Europe: gray zone tactics, threats to Svalbard & Åland Islands, undersea infrastructure threats. NATO studying multiple attack scenarios.'},
+  {s:'India',    t:'Pakistan',   type:'threat',   lb:'India–Pakistan: both sides maintain force buildups. Pakistan claims India "preparing for another war" after Mar 5–12 airspace reservation.'},
+  {s:'Ethiopia', t:'Eritrea',    type:'threat',   lb:'Ethiopia demands Eritrea withdraw troops from its territory. Eritrea denies presence. Risk of interstate escalation rising.'},
+  {s:'Hungary',  t:'Ukraine',    type:'threat',   lb:'Hungary (Orbán): blocking EU/NATO aid packages, vetoing accession talks, maintaining Russian gas deals. NATO\'s most disruptive internal actor on the Ukraine file.'},
+  {s:'Israel',   t:'USA',        type:'influence',lb:'Israel: AIPAC lobbying / political leverage over US. Alleged political blackmail of administration.'},
+  {s:'Israel',   t:'Canada',     type:'influence',lb:'Israel: AIPAC-equivalent covert influence operations in Canada.'},
+  {s:'Russia',   t:'Sahel',      type:'influence',lb:'Russia → Sahel: Africa Corps expanding to Gulf of Guinea states. Exploiting political instability.'},
+  {s:'Russia',   t:'Europe',     type:'influence',lb:'Russia → Europe: hybrid warfare — sabotage of undersea infrastructure, disinformation, election interference. "Undeclared war on the Northern Front."'},
+  {s:'China',    t:'SE Asia',    type:'influence',lb:'China → SE Asia: cyber espionage targeting SE Asian military organizations (ongoing since 2020).'},
+  {s:'N.Korea',  t:'Europe',     type:'influence',lb:'N.Korea → Western companies: deepfake-enabled IT worker scheme embedding operatives in Western payrolls. Revenue generation + espionage.'},
+  {s:'UAE',      t:'DRC',        type:'influence',lb:'UAE → DRC: covert military support to proxy forces while maintaining diplomatic neutrality.'},
+  {s:'Iran',     t:'USA',        type:'cyber',    lb:'Iran (MuddyWater/MOIS): multi-vector retaliation launched hours after Feb 28 strikes. New "Dindoor" backdoor targeting US networks.'},
+  {s:'Iran',     t:'Israel',     type:'cyber',    lb:'Iran: cyber campaign vs Israel — supply chain attacks as extension of kinetic conflict.'},
+  {s:'Russia',   t:'USA',        type:'cyber',    lb:'Russia (APT28): multi-stage attack chain exploiting Microsoft Office vulnerability. Targeting US government/military.'},
+  {s:'Russia',   t:'Europe',     type:'cyber',    lb:'Russia: cyberwarfare vs NATO governments — stealthy post-exploitation.'},
+  {s:'Russia',   t:'Ukraine',    type:'cyber',    lb:'Russia: sustained cyberwarfare vs Ukraine infrastructure.'},
+  {s:'China',    t:'USA',        type:'cyber',    lb:'China: cyberwarfare vs USA'},
+  {s:'China',    t:'SE Asia',    type:'cyber',    lb:'China: long-running cyber espionage vs SE Asian militaries (since 2020).'},
+  {s:'USA',      t:'China',      type:'cyber',    lb:'USA: cyberwarfare vs China'},
+  {s:'USA',      t:'Russia',     type:'cyber',    lb:'USA: cyberwarfare vs Russia'},
+  {s:'USA',      t:'Iran',       type:'cyber',    lb:'USA: cyberwarfare vs Iran'},
+  {s:'N.Korea',  t:'USA',        type:'cyber',    lb:'N.Korea: IT worker infiltration using deepfakes. Revenue for weapons programs.'},
+  {s:'S.Arabia', t:'Israel',     type:'complex',  lb:'Gulf States–Israel: no war / no peace. Abraham Accords partial. Saudi normalization on hold.'},
+  {s:'Haiti',    t:'Haiti',      type:'complex',  lb:'Haiti: 150–200 gangs control 85–90% of Port-au-Prince. Highest homicide rate on Earth. Transitional government winding down Feb 2026.'},
+  {s:'Mexico',   t:'Mexico',     type:'complex',  lb:'Mexico Drug War: CJNG vs Sinaloa Cartel vs state forces. State complicity blurs lines. US designated cartels; scope of intervention unclear post-Venezuela.'},
+  {s:'Colombia', t:'Colombia',   type:'complex',  lb:'Colombia: drug trafficking embedded in state. Peace process with ELN stalled. Criminal governance expanding.'},
+  {s:'Sahel',    t:'Sahel',      type:'complex',  lb:'Sahel Juntas (Mali, Burkina Faso, Niger): allied with Russia (AES), broke from ECOWAS. Africa Corps failing to degrade insurgencies.'},
+  {s:'Somalia',  t:'Somalia',    type:'complex',  lb:'Somalia: Al-Shabaab + clan politics + election disputes + FGS coalition collapse. Multiple overlapping conflicts.'},
+  {s:'Afghanistan',t:'Pakistan', type:'attack',   lb:'Afghanistan (Taliban) vs Pakistan: TTP cross-border attacks from Afghan soil. Taliban denies harbouring TTP; Islamabad disagrees.'},
+  {s:'Pakistan', t:'Afghanistan',type:'attack',   lb:'Pakistan: airstrikes on Afghan territory targeting TTP positions. Kabul condemned strikes as act of war.'},
+];
+
+const isMobile = () => window.innerWidth <= 768;
+
+// ── SHEET (mobile bottom sheet + arc tap) ──────────────────────────
+const sheet     = document.getElementById('sheet');
+const sheetTitle= document.getElementById('sheet-title');
+const sheetBody = document.getElementById('sheet-body');
+document.getElementById('sheet-close').onclick = closeSheet;
+function closeSheet(){ sheet.classList.remove('open'); }
+function openSheet(title, html){
+  sheetTitle.textContent = title;
+  sheetBody.innerHTML = html;
+  sheet.classList.add('open');
+}
+
+// ── NODE PANEL (desktop) ───────────────────────────────────────────
+const nodepanel = document.getElementById('nodepanel');
+function closePanel(){ nodepanel.style.display='none'; resetDim(); hoveredNode=null; }
+
+// ── FILTER TOGGLE (mobile) ─────────────────────────────────────────
+const filterToggle  = document.getElementById('filter-toggle');
+const filterDrawer  = document.getElementById('filter-drawer');
+filterToggle.onclick = () => {
+  const open = filterDrawer.classList.toggle('open');
+  filterToggle.classList.toggle('open', open);
+  filterToggle.textContent = open ? 'Done' : 'Filter';
+};
+
+(async () => {
+  const wrap = document.getElementById('map-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const svg = d3.select('#wm').attr('viewBox', `0 0 ${W} ${H}`);
+
+  const proj = d3.geoNaturalEarth1()
+    .scale(Math.min(W/5.8, 155))
+    .translate([W/2, H/2+20]);
+  const geoPath = d3.geoPath().projection(proj);
+
+  const root = svg.append('g').attr('id','map-root');
+
+  root.append('path').datum({type:'Sphere'})
+    .attr('d',geoPath).attr('fill','#0a1512').attr('stroke','none');
+  root.append('path').datum(d3.geoGraticule()())
+    .attr('fill','none').attr('stroke','#ffffff08').attr('stroke-width',0.4).attr('d',geoPath);
+
+  const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+
+  root.append('g').selectAll('path')
+    .data(topojson.feature(world, world.objects.countries).features)
+    .enter().append('path').attr('d',geoPath)
+    .attr('fill',d=>{ const c=COUNTRY_COLORS[+d.id]; return c?c+'cc':'#1e2220'; })
+    .attr('stroke','#ffffff14').attr('stroke-width',0.3);
+
+  root.append('path').datum({type:'Sphere'})
+    .attr('d',geoPath).attr('fill','none')
+    .attr('stroke','#ffffff22').attr('stroke-width',0.6);
+
+  const P = {};
+  Object.entries(ACTORS).forEach(([k,v])=>{ P[k]=proj(v.ll); });
+
+  const adj = {};
+  ARCS.forEach(a=>{
+    (adj[a.s]||(adj[a.s]=[])).push({dir:'→',other:a.t,type:a.type,lb:a.lb});
+    (adj[a.t]||(adj[a.t]=[])).push({dir:'←',other:a.s,type:a.type,lb:a.lb});
+  });
+
+  const activeFilters = new Set(Object.keys(TYPES));
+  let hoveredNode = null;
+  window.hoveredNode = null;
+
+  // ── ARCS ──────────────────────────────────────────────────────────
+  const arcG = root.append('g').attr('id','arc-group');
+  const tt = document.getElementById('tooltip');
+  const pairN = {}, arcEls = [];
+
+  ARCS.forEach(arc => {
+    const s=P[arc.s], t=P[arc.t];
+    if(!s||!t) return;
+    const st=TYPES[arc.type];
+    const dx=t[0]-s[0], dy=t[1]-s[1];
+    const len=Math.sqrt(dx*dx+dy*dy);
+    if(len<2) return;
+    const key=[arc.s,arc.t].sort().join('|');
+    pairN[key]=(pairN[key]||0)+1;
+    const n=pairN[key], sign=n%2===0?-1:1;
+    const cv=Math.min(len*.22,55)*sign*Math.ceil(n/2);
+    const cx=(s[0]+t[0])/2-(dy/len)*cv, cy=(s[1]+t[1])/2+(dx/len)*cv;
+
+    const el=arcG.append('path')
+      .attr('d',`M${s[0]},${s[1]} Q${cx},${cy} ${t[0]},${t[1]}`)
+      .attr('class','arc-path')
+      .attr('stroke',st.c).attr('stroke-width',st.w)
+      .attr('stroke-dasharray',st.d||'none').attr('opacity',st.o)
+      .attr('data-type',arc.type);
+
+    // Desktop hover
+    el.on('mouseenter',function(e){
+      if(isMobile()) return;
+      d3.select(this).attr('stroke-width',st.w*2.8).attr('opacity',1);
+      tt.style.opacity='1'; tt.textContent=arc.lb;
+    }).on('mousemove',function(e){
+      if(isMobile()) return;
+      tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-36)+'px';
+    }).on('mouseleave',function(){
+      if(isMobile()) return;
+      d3.select(this).attr('stroke-width',st.w).attr('opacity',st.o);
+      tt.style.opacity='0';
+    });
+
+    // Mobile tap
+    el.on('click',function(e){
+      if(!isMobile()) return;
+      e.stopPropagation();
+      openSheet(arc.s+' → '+arc.t,
+        `<div class="row"><div class="type" style="color:${st.c}">${arc.type.toUpperCase()}</div>
+         <div class="detail">${arc.lb}</div></div>`);
+    });
+
+    arcEls.push({el,arc,st});
+  });
+
+  // ── LABELS & DOTS (fixed overlay) ─────────────────────────────────
+  const labelLayer = svg.append('g').attr('id','label-layer').style('pointer-events','none');
+  const labelEls = {};
+
+  Object.entries(ACTORS).forEach(([k,v])=>{
+    const p=P[k]; if(!p) return;
+    const dotR = isMobile() ? 6 : 4;
+    const dot=labelLayer.append('circle').attr('class','node-circle')
+      .attr('r',dotR).attr('fill',v.color).attr('stroke','#0d0f0e').attr('stroke-width',1.2)
+      .attr('cx',p[0]).attr('cy',p[1]).style('cursor','pointer').style('pointer-events','all');
+
+    const lx=v.la==='start'?8:v.la==='end'?-8:0;
+    const txt=labelLayer.append('text').attr('class','node-lbl')
+      .attr('text-anchor',v.la).attr('fill','#d4cfc0ee')
+      .attr('font-size','9px').attr('font-family',"'Space Mono',monospace")
+      .attr('x',p[0]+lx).attr('y',p[1]+v.dy).text(k);
+
+    labelEls[k]={p,lx,dy:v.dy,dot,txt};
+
+    dot.on('click',function(e){
+      e.stopPropagation();
+      if(hoveredNode===k){ hoveredNode=null; closePanel(); closeSheet(); resetDim(); return; }
+      hoveredNode=k;
+
+      const rels=adj[k]||[];
+      const rowsHtml=rels.map(r=>{
+        const col=TYPES[r.type].c;
+        return `<div class="row" style="border-left-color:${col}">
+          <div class="type" style="color:${col}">${r.type.toUpperCase()} ${r.dir} ${r.other}</div>
+          <div class="detail">${r.lb}</div></div>`;
+      }).join('')||'<div class="row"><div class="detail">No direct relationships</div></div>';
+
+      if(isMobile()){
+        openSheet(k, rowsHtml);
+      } else {
+        document.getElementById('np-name').textContent=k;
+        document.getElementById('np-rows').innerHTML=rels.map(r=>{
+          const col=TYPES[r.type].c;
+          return `<div class="nprow">
+            <div class="npt" style="color:${col}">${r.type.toUpperCase()} ${r.dir} ${r.other}</div>
+            <span>${r.lb}</span></div>`;
+        }).join('')||'<div class="nprow"><span>No direct relationships</span></div>';
+        nodepanel.style.display='block';
+      }
+
+      arcEls.forEach(({el,arc,st})=>{
+        const show=arc.s===k||arc.t===k;
+        el.attr('opacity',show?1:.05).attr('stroke-width',show?st.w*1.8:st.w*.5);
+      });
+    });
+  });
+
+  svg.on('click',()=>{ hoveredNode=null; closePanel(); closeSheet(); resetDim(); });
+
+  function resetDim(){
+    arcEls.forEach(({el,arc,st})=>{
+      const show=activeFilters.has(arc.type);
+      el.attr('opacity',show?st.o:0).attr('stroke-width',st.w).attr('display',show?null:'none');
+    });
+  }
+
+  // ── ZOOM ──────────────────────────────────────────────────────────
+  const zoom=d3.zoom().scaleExtent([0.8,12]).on('zoom',e=>{
+    root.attr('transform',e.transform);
+    const t=e.transform;
+    Object.values(labelEls).forEach(({p,lx,dy,dot,txt})=>{
+      const sx=t.applyX(p[0]), sy=t.applyY(p[1]);
+      dot.attr('cx',sx).attr('cy',sy);
+      txt.attr('x',sx+lx).attr('y',sy+dy);
+    });
+    arcEls.forEach(({el,st})=>el.attr('stroke-width',st.w/Math.sqrt(t.k)));
+  });
+  d3.select('#wm').call(zoom);
+
+  // ── FILTERS ───────────────────────────────────────────────────────
+  function makeFilterBtns(container){
+    Object.entries(TYPES).forEach(([type,ts])=>{
+      const btn=document.createElement('button');
+      btn.className='filter-btn on'; btn.textContent=type;
+      btn.style.borderColor=ts.c+'88';
+      btn.addEventListener('click',()=>{
+        // sync both containers
+        document.querySelectorAll(`.filter-btn[data-type="${type}"]`).forEach(b=>{
+          if(activeFilters.has(type)){
+            b.classList.remove('on'); b.style.borderColor='#2a2d2a'; b.style.color='';
+          } else {
+            b.classList.add('on'); b.style.borderColor=ts.c; b.style.color=ts.c;
+          }
+        });
+        if(activeFilters.has(type)) activeFilters.delete(type);
+        else activeFilters.add(type);
+        resetDim();
+      });
+      btn.dataset.type=type;
+      container.appendChild(btn);
+    });
+  }
+  makeFilterBtns(document.getElementById('filter-strip'));
+  makeFilterBtns(filterDrawer);
+
+  // ── LEGEND (desktop) ──────────────────────────────────────────────
+  const leg=document.getElementById('legend');
+  Object.entries(TYPES).forEach(([,ts])=>{
+    leg.innerHTML+=`<div class="li">
+      <svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4"
+        stroke="${ts.c}" stroke-width="${ts.w}" stroke-dasharray="${ts.d||'none'}"/></svg>
+      ${ts.label}</div>`;
+  });
+  leg.innerHTML+=`<span id="count-hint">${ARCS.length} relationships — scroll/pinch to zoom — tap node to inspect</span>`;
+})();
+</script>
+</body>
+</html>
